@@ -693,10 +693,31 @@ def process_invoice():
 
         def run(playwright: Playwright) -> None:
             browser = playwright.chromium.launch(
-                headless=False,
-                args=["--window-position=-2000,0"]
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",        # 解決 /dev/shm 太小
+                    "--disable-gpu",
+                    "--no-zygote",
+                    "--single-process",               # 容器內最省記憶體
+                    "--disable-extensions",
+                    "--disable-background-networking",
+                    "--disable-sync",
+                    "--disable-translate",
+                    "--disable-features=site-per-process,TranslateUI,BlinkGenPropertyTrees",
+                    "--window-size=1920,1080",
+                    "--font-render-hinting=none",# 設定視窗大小，避免尺寸異常
+                ]
             )
-            context = browser.new_context()
+            context = browser.new_context(
+                viewport={"width": 1920, "height": 1080},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                locale="zh-TW",
+                timezone_id="Asia/Taipei",
+                java_script_enabled=True,
+                bypass_csp=True,
+            )
             page = context.new_page()
 
             success = try_full_process_with_retry(page)
@@ -837,6 +858,19 @@ def export_transactions():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+
+@app.route('/test-browser')
+def test_browser():
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto("https://httpbin.org/headers")
+            title = page.title()
+            browser.close()
+        return f"Playwright 正常運作！頁面標題：{title}"
+    except Exception as e:
+        return f"失敗：{str(e)}", 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
